@@ -25,4 +25,11 @@ define Package/librknnrt/install
 	$(INSTALL_BIN) ./files/usr/lib/librknnrt.so $(1)/usr/lib/
 endef
 
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Compile
+endef
+
 $(eval $(call BuildPackage,librknnrt))

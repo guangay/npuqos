@@ -31,4 +31,11 @@ define Package/luci-app-npuqos/install
 	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-npuqos.json $(1)/usr/share/rpcd/acl.d/
 endef
 
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Compile
+endef
+
 $(eval $(call BuildPackage,luci-app-npuqos))

@@ -37,4 +37,11 @@ define Package/npu-flowqos/install
 	$(INSTALL_CONF) ./files/etc/config/npuqos $(1)/etc/config/
 endef
 
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Compile
+endef
+
 $(eval $(call BuildPackage,npu-flowqos))

@@ -31,4 +31,11 @@ define Package/libstdcxx-cxx11/postinst
 exit 0
 endef
 
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Compile
+endef
+
 $(eval $(call BuildPackage,libstdcxx-cxx11))
