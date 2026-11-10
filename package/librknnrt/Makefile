@@ -12,7 +12,6 @@ define Package/librknnrt
   CATEGORY:=Libraries
   TITLE:=Rockchip NPU userspace runtime (RKNN, prebuilt)
   DEPENDS:=+libstdcxx-cxx11 +libglibc-shim
-  PKGARCH:=aarch64_cortex-a53
 endef
 
 define Package/librknnrt/description

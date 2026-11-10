@@ -12,7 +12,6 @@ define Package/npu-flowqos
   CATEGORY:=Network
   TITLE:=NPU flow QoS classifier (RKNN dual-model, RK3568)
   DEPENDS:=+librknnrt +kmod-rknpu +iptables +ipset +kmod-ipt-ipset +tc +kmod-sched-cake
-  PKGARCH:=aarch64_cortex-a53
 endef
 
 define Package/npu-flowqos/description

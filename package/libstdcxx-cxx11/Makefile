@@ -12,7 +12,6 @@ define Package/libstdcxx-cxx11
   CATEGORY:=Libraries
   TITLE:=glibc-built libstdc++ with cxx11 ABI
   DEPENDS:=+libglibc-shim
-  PKGARCH:=aarch64_cortex-a53
 endef
 
 define Package/libstdcxx-cxx11/description

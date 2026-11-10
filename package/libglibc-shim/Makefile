@@ -11,7 +11,6 @@ define Package/libglibc-shim
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=glibc symbol shim for proprietary blobs on musl
-  PKGARCH:=aarch64_cortex-a53
 endef
 
 define Package/libglibc-shim/description
