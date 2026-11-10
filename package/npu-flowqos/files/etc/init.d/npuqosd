@@ -1,0 +1,129 @@
+#!/bin/sh /etc/rc.common
+# NPU flow-QoS: classifier daemon + ipset hashing + cake fwmark tinning + WMM DSCP
+USE_PROCD=1
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+START=99
+STOP=10
+DIR=/usr/bin/npuqos
+BIN=$DIR/npu_flowqosd
+LOG=/tmp/flowqos.log
+EGRESS="eth0 wwan0_1"
+
+CLSMARK() { case "$1" in priority) echo 4;; stream) echo 3;; bulk) echo 1;; interactive|*) echo 2;; esac; }
+
+rules_off() {
+    iptables  -t mangle -F NPUQOS_M 2>/dev/null
+    iptables  -t mangle -D PREROUTING -j NPUQOS_M 2>/dev/null
+    iptables  -t mangle -D OUTPUT -j NPUQOS_M 2>/dev/null
+    ip6tables -t mangle -F NPUQOS_M 2>/dev/null
+    ip6tables -t mangle -D PREROUTING -j NPUQOS_M 2>/dev/null
+    ip6tables -t mangle -D OUTPUT -j NPUQOS_M 2>/dev/null
+    for m in 1 2 3 4; do
+        ipset destroy npuqos${m}_4 2>/dev/null
+        ipset destroy npuqos${m}_6 2>/dev/null
+        ipset destroy npuqos${m}s_4 2>/dev/null
+        ipset destroy npuqos${m}s_6 2>/dev/null
+    done
+}
+
+host_rules() {
+    :   # handled by daemon (host_whitelist) at startup
+}
+
+cake_on() {
+    local bw_e=0 bw_w=0 bw_ed=0 bw_wd=0
+    [ -f /etc/config/npuqos ] && {
+        bw_e=$(uci -q get npuqos.main.bw_eth0 || echo 0)
+        bw_w=$(uci -q get npuqos.main.bw_wwan || echo 0)
+        bw_ed=$(uci -q get npuqos.main.bw_eth0_down || echo 0)
+        bw_wd=$(uci -q get npuqos.main.bw_wwan_down || echo 0)
+    }
+    for d in $EGRESS; do
+        ip link show $d >/dev/null 2>&1 || continue
+        local bw=$bw_e
+        [ "$d" = "wwan0_1" ] && bw=$bw_w
+        if [ "$bw" -gt 0 ] 2>/dev/null; then
+            tc qdisc replace dev $d root cake diffserv4 fwmark 0xf0000 bandwidth ${bw}mbit 2>/dev/null
+        else
+            tc qdisc replace dev $d root cake diffserv4 fwmark 0xf0000 2>/dev/null
+        fi
+    done
+    # ingress (download) shaping via ifb, optional
+    ingress_on eth0  $bw_ed 0
+    ingress_on wwan0_1 $bw_wd 1
+    # wwan0_1 may appear 30-60s after boot (modem registration): retry in background
+    ( i=0
+      while [ $i -lt 90 ]; do
+          ip link show wwan0_1 >/dev/null 2>&1 || { sleep 2; i=$((i+1)); continue; }
+          tc qdisc show dev wwan0_1 2>/dev/null | grep -q cake && break
+          if [ "$bw_w" -gt 0 ] 2>/dev/null; then
+              tc qdisc replace dev wwan0_1 root cake diffserv4 fwmark 0xf0000 bandwidth ${bw_w}mbit 2>/dev/null && break
+          else
+              tc qdisc replace dev wwan0_1 root cake diffserv4 fwmark 0xf0000 2>/dev/null && break
+          fi
+          sleep 2; i=$((i+1))
+      done ) &
+}
+
+ingress_on() {
+    local d=$1 bw=$2 idx=$3
+    [ "$bw" -gt 0 ] 2>/dev/null || return 0
+    ip link show ifb$idx >/dev/null 2>&1 || ip link add ifb$idx type ifb 2>/dev/null
+    ip link show ifb$idx >/dev/null 2>&1 || { modprobe ifb numifbs=2 2>/dev/null; }
+    ip link show ifb$idx >/dev/null 2>&1 || return 0
+    ip link set ifb$idx up 2>/dev/null
+    tc qdisc del dev $d ingress 2>/dev/null
+    tc qdisc add dev $d handle ffff: ingress 2>/dev/null || return 0
+    tc filter add dev $d parent ffff: matchall action mirred egress redirect dev ifb$idx 2>/dev/null || { tc qdisc del dev $d ingress 2>/dev/null; return 0; }
+    tc qdisc replace dev ifb$idx root cake diffserv4 fwmark 0xf0000 bandwidth ${bw}mbit nat 2>/dev/null
+    logger -t npuqosd "ingress cake on $d -> ifb$idx @ ${bw}mbit"
+}
+
+ingress_off() {
+    local d=$1 idx=$2
+    tc qdisc del dev $d ingress 2>/dev/null
+    tc qdisc del dev ifb$idx root 2>/dev/null
+    ip link set ifb$idx down 2>/dev/null
+}
+
+cake_off() {
+    tc qdisc replace dev wwan0_1 root fq 2>/dev/null
+    tc qdisc replace dev eth0 root handle 1: mq 2>/dev/null
+    tc qdisc add dev eth0 parent 1:1 fq 2>/dev/null
+}
+
+start_service() {
+    [ -x $BIN ] || { logger -t npuqosd "missing $BIN"; return 1; }
+    local en=1
+    if [ -f /etc/config/npuqos ]; then
+        . /lib/functions.sh
+        config_load npuqos
+        config_get en main enabled 1
+    fi
+    [ "$en" = "1" ] || { logger -t npuqosd "disabled by uci npuqos.main.enabled"; return 0; }
+    rules_off
+    procd_open_instance
+    procd_set_param command $BIN -m $DIR/flow_mlp_tcp.rknn -u $DIR/flow_mlp_quic.rknn -x $DIR/flow_mlp_tcp_v6.rknn -l $LOG -s /tmp/npuqos_status.json
+    procd_set_param respawn 3600 5 0
+    procd_set_param limits memlock="unlimited unlimited"
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_close_instance
+    local i=0
+    while [ $i -lt 15 ]; do
+        N=$(iptables -t mangle -S NPUQOS_M 2>/dev/null | grep -c '^-A')
+        [ "$N" -ge 8 ] && break
+        sleep 1; i=$((i+1))
+    done
+    host_rules
+    cake_on
+    logger -t npuqosd "started (ipset+cake on $EGRESS)"
+}
+
+stop_service() {
+    for p in $(pidof npu_flowqosd); do kill $p 2>/dev/null; done
+    rules_off
+    ingress_off eth0 0
+    ingress_off wwan0_1 1
+    cake_off
+}

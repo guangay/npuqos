@@ -1,0 +1,30 @@
+{
+	"admin/status/npuqos": {
+		"title": "NPU 智能QoS",
+		"order": 65,
+		"action": { "type": "firstchild" },
+		"depends": {
+			"acl": [ "luci-app-npuqos" ],
+			"uci": { "npuqos": true }
+		}
+	},
+	"admin/status/npuqos/status": {
+		"title": "运行状态",
+		"order": 10,
+		"action": { "type": "view", "path": "npuqos/status" }
+	},
+	"admin/services/npuqos": {
+		"title": "NPU 智能QoS",
+		"order": 90,
+		"action": { "type": "firstchild" },
+		"depends": {
+			"acl": [ "luci-app-npuqos" ],
+			"uci": { "npuqos": true }
+		}
+	},
+	"admin/services/npuqos/settings": {
+		"title": "设置",
+		"order": 10,
+		"action": { "type": "view", "path": "npuqos/settings" }
+	}
+}

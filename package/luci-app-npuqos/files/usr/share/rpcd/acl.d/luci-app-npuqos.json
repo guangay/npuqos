@@ -1,0 +1,15 @@
+{
+	"luci-app-npuqos": {
+		"description": "Grant access to NPU QoS status and settings",
+		"read": {
+			"file": {
+				"/tmp/npuqos_status.json": [ "read" ],
+				"/usr/bin/npuqos/history.log": [ "read" ]
+			},
+			"uci": [ "npuqos" ]
+		},
+		"write": {
+			"uci": [ "npuqos" ]
+		}
+	}
+}

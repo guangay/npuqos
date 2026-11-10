@@ -1,0 +1,12 @@
+config npuqos 'main'
+	option enabled '1'
+	# 出口/下行带宽标定 (Mbit/s)，0 = 不限/不整形（纯分档模式）
+	option bw_eth0 '0'
+	option bw_wwan '0'
+	option bw_eth0_down '0'
+	option bw_wwan_down '0'
+
+# 静态主机优先级白名单（优先级高于 AI 分类，设置页或状态页"钉"按钮添加）:
+#config host
+#	option ip '192.168.100.50'    # IPv4 或 IPv6
+#	option class 'priority'       # priority | interactive | stream | bulk
